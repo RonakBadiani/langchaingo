@@ -4,7 +4,11 @@
 // and/or pass in the schema in []byte format.
 package jsonschema
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/invopop/jsonschema"
+)
 
 type DataType string
 
@@ -46,4 +50,17 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 	}{
 		Alias: (Alias)(d),
 	})
+}
+
+// Function to generate JSON schema from an interface{}
+func GenerateJSONSchema(obj interface{}) (string, error) {
+	reflector := jsonschema.Reflector{}
+	schema := reflector.Reflect(obj)
+
+	schemaBytes, err := json.MarshalIndent(schema, "", "  ")
+	if err != nil {
+		return "", err
+	}
+
+	return string(schemaBytes), nil
 }

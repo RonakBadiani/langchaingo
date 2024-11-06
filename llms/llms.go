@@ -2,7 +2,11 @@ package llms
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
+
+	"github.com/tmc/langchaingo/jsonschema"
 )
 
 // LLM is an alias for model, for backwards compatibility.
@@ -49,4 +53,41 @@ func GenerateFromSinglePrompt(ctx context.Context, llm Model, prompt string, opt
 	}
 	c1 := choices[0]
 	return c1.Content, nil
+}
+
+func GenerateStructuredContent(ctx context.Context, llm Model, messages []MessageContent, outputObj interface{}, options ...CallOption) error {
+
+	jsonSchemaStr, err := jsonschema.GenerateJSONSchema(outputObj)
+	if err != nil {
+		return err
+	}
+
+	messages = append(messages, MessageContent{
+		Role: ChatMessageTypeHuman,
+		Parts: []ContentPart{
+			TextContent{Text: "Always give output in JSON format. Please find JSON schema below: "},
+			TextContent{Text: jsonSchemaStr},
+		},
+	})
+
+	llmResp, err := llm.GenerateContent(ctx, messages, options...)
+	if err != nil {
+		return err
+	}
+
+	if len(llmResp.Choices) < 1 {
+		return errors.New("empty response from model")
+	}
+
+	llmRespStr := llmResp.Choices[0].Content
+
+	llmRespStr = strings.Trim(llmRespStr, "```")
+	llmRespStr = strings.Trim(llmRespStr, "json")
+
+	err = json.Unmarshal([]byte(llmRespStr), outputObj)
+	if err != nil {
+		return errors.New("error unmarshalling response. Err - " + err.Error())
+	}
+
+	return nil
 }
